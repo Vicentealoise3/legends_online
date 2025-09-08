@@ -11,10 +11,12 @@
     <h1>⚾ Strike Latino 2</h1>
     <p class="subtitle">Tabla de posiciones y juegos del día</p>
 
-    <div id="loading" class="hidden">
+    <div id="loading">
       <p id="loading-text">Cargando datos, por favor espera…</p>
     </div>
-    <div id="last-updated-text" style="text-align: center; color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 20px;"></div>
+
+    <div id="error" class="hidden"></div>
+    <div id="last-updated-text" class="last-updated hidden"></div>
 
     <section id="standings-section" class="hidden">
       <h2>🏆 Tabla de posiciones</h2>
@@ -22,174 +24,100 @@
         <table id="standings-table">
           <thead>
             <tr>
-              <th>Pos</th>
+              <th>#</th>
               <th>Equipo</th>
               <th>Jugador</th>
+              <th>Prog</th>
               <th>JJ</th>
               <th>W</th>
               <th>L</th>
-              <th>P.Jugar</th>
+              <th>Por jugar</th>
               <th>Pts</th>
             </tr>
           </thead>
-          <tbody></tbody>
+          <tbody id="standings-body"></tbody>
         </table>
       </div>
     </section>
 
-    <section id="games-today" class="hidden">
-      <h2>📅 Juegos jugados HOY (hora Chile)</h2>
-      <ul id="games-list"></ul>
+    <section id="games-today-section" class="hidden">
+      <h2>📅 Juegos jugados hoy</h2>
+      <ul id="games-today-list" class="games-list"></ul>
     </section>
-
-    <div id="error" class="hidden"></div>
   </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   <script>
-
-
-
-
-
-
-<div style="text-align:center; margin: 10px 0 16px;">
-  <button id="btnRefresh" style="padding:8px 12px; border-radius:8px; border:none; background:#58a6ff; color:#0d1117; cursor:pointer;">Refrescar caché</button>
-  <span id="refreshMsg" style="margin-left:8px; color:#9aa5b1; font-size:12px;"></span>
-</div>
-<script>
-  const btn = document.getElementById('btnRefresh');
-  const msg = document.getElementById('refreshMsg');
-  btn?.addEventListener('click', async () => {
-    btn.disabled = true; msg.textContent = 'Actualizando...';
-    try {
-      const r = await fetch('/rebuild', { method: 'POST' });
-      const j = await r.json();
-      if (j.ok) {
-        msg.textContent = 'Listo. Recarga la página.';
-      } else {
-        msg.textContent = 'Error: ' + (j.error || j.message || 'desconocido');
-      }
-    } catch (e) {
-      msg.textContent = 'Error de red';
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    const tbody = document.querySelector("#standings-table tbody");
+    const loadingBox = document.getElementById("loading");
     const errorBox = document.getElementById("error");
+    const lastUpdated = document.getElementById("last-updated-text");
+
     const standingsSection = document.getElementById("standings-section");
-    const gamesTodayBox = document.getElementById("games-today");
-    const gamesList = document.getElementById("games-list");
-    const lastUpdatedText = document.getElementById("last-updated-text");
+    const standingsBody = document.getElementById("standings-body");
+
+    const gamesTodaySection = document.getElementById("games-today-section");
+    const gamesTodayList = document.getElementById("games-today-list");
+
+    function show(el){ el.classList.remove("hidden"); }
+    function hide(el){ el.classList.add("hidden"); }
 
     async function loadData() {
+      hide(errorBox);
+      show(loadingBox);
       try {
         const res = await fetch("/api/full", { cache: "no-store" });
-        if (!res.ok) throw new Error("Respuesta HTTP " + res.status);
-
+        if (!res.ok) {
+          const j = await res.json().catch(()=>({error:""}));
+          throw new Error(j.error || `HTTP ${res.status}`);
+        }
         const data = await res.json();
-        
+
+        // Marca de tiempo
         if (data.last_updated) {
-            lastUpdatedText.textContent = `Última actualización: ${data.last_updated}`;
+          lastUpdated.textContent = `Última actualización: ${data.last_updated}`;
+          show(lastUpdated);
         }
 
-        // Tabla de posiciones
-        tbody.innerHTML = "";
-        data.standings.forEach((r, idx) => {
+        // Standings
+        standingsBody.innerHTML = "";
+        (data.standings || []).forEach((row, idx) => {
           const tr = document.createElement("tr");
           tr.innerHTML = `
             <td>${idx + 1}</td>
-            <td><span class="team">${r.team}</span></td>
-            <td><span class="user">${r.user}</span></td>
-            <td>${r.played}</td>
-            <td>${r.wins}</td>
-            <td>${r.losses}</td>
-            <td>${r.remaining}</td>
-            <td><strong>${r.points}</strong></td>
+            <td>${row.team}</td>
+            <td><span class="tag">${row.user}</span></td>
+            <td class="num">${row.scheduled}</td>
+            <td class="num">${row.played}</td>
+            <td class="num ok">${row.wins}</td>
+            <td class="num bad">${row.losses}</td>
+            <td class="num">${row.remaining}</td>
+            <td class="num">${row.points}</td>
           `;
-          tbody.appendChild(tr);
+          standingsBody.appendChild(tr);
         });
+        show(standingsSection);
 
         // Juegos de hoy
-        gamesList.innerHTML = "";
-        if (data.games_today && data.games_today.length > 0) {
-          data.games_today.forEach(g => {
-            const li = document.createElement("li");
-            li.innerHTML = `<span class="game-item">${g}</span>`;
-            gamesList.appendChild(li);
-          });
-          gamesTodayBox.classList.remove("hidden");
+        gamesTodayList.innerHTML = "";
+        const games = data.games_today || [];
+        if (games.length === 0) {
+          gamesTodayList.innerHTML = `<li class="muted">No hay juegos finalizados hoy.</li>`;
         } else {
-          const li = document.createElement("li");
-          li.textContent = "— No hay registros hoy —";
-          gamesList.appendChild(li);
-          gamesTodayBox.classList.remove("hidden");
+          games.forEach(g => {
+            const li = document.createElement("li");
+            li.innerHTML = `
+              <div><strong>${g.home_team}</strong> ${g.home_score} - ${g.away_score} <strong>${g.away_team}</strong></div>
+              <div class="pill">${g.ended_at_local}</div>
+            `;
+            gamesTodayList.appendChild(li);
+          });
         }
+        show(gamesTodaySection);
 
-        standingsSection.classList.remove("hidden");
-        
       } catch (err) {
-        errorBox.classList.remove("hidden");
         errorBox.textContent = "No se pudieron cargar los datos: " + err.message;
+        show(errorBox);
+      } finally {
+        hide(loadingBox);
       }
     }
 
