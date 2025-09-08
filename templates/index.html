@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Strike Latino 2 - Tabla & Juegos</title>
+  <!-- Sirve el CSS desde /static; asegúrate de tener static/styles.css con contenido -->
   <link rel="stylesheet" href="/static/styles.css" />
   <style>
+    /* Fallback visual mínimo por si el CSS no carga */
     body{font-family:system-ui,Arial,sans-serif;background:#0b1220;color:#e8eefc;margin:0}
     .container{max-width:1000px;margin:0 auto;padding:24px}
     .hidden{display:none}
@@ -59,12 +61,6 @@
       <h2>📅 Juegos jugados hoy</h2>
       <ul id="games-today-list" class="games-list"></ul>
     </section>
-
-    <!-- AYER: nuevo bloque -->
-    <section id="games-yesterday-section" class="hidden">
-      <h2>📅 Juegos jugados ayer</h2>
-      <ul id="games-yesterday-list" class="games-list"></ul>
-    </section>
   </div>
 
   <script>
@@ -74,10 +70,8 @@
       updated: document.getElementById('last-updated'),
       standingsSection: document.getElementById('standings-section'),
       standingsBody: document.getElementById('standings-body'),
-      gamesTodaySection: document.getElementById('games-today-section'),
-      gamesTodayList: document.getElementById('games-today-list'),
-      gamesYDaySection: document.getElementById('games-yesterday-section'), // AYER
-      gamesYDayList: document.getElementById('games-yesterday-list')        // AYER
+      gamesSection: document.getElementById('games-today-section'),
+      gamesList: document.getElementById('games-today-list')
     };
     const show = x => x.classList.remove('hidden');
     const hide = x => x.classList.add('hidden');
@@ -106,28 +100,6 @@
       return { raw: s };
     }
 
-    function renderGames(listEl, games){
-      listEl.innerHTML = '';
-      if (!games || games.length === 0) {
-        listEl.innerHTML = `<li class="muted">No hay juegos en este período.</li>`;
-        return;
-      }
-      games.forEach(g => {
-        let obj = g;
-        if (typeof g === 'string') obj = parseGameString(g);
-        const li = document.createElement('li');
-        if (obj.raw) {
-          li.textContent = obj.raw;
-        } else {
-          li.innerHTML = `
-            <div><strong>${obj.home_team}</strong> ${obj.home_score} - ${obj.away_score} <strong>${obj.away_team}</strong></div>
-            <div class="pill">${obj.ended_at_local}</div>
-          `;
-        }
-        listEl.appendChild(li);
-      });
-    }
-
     async function loadData(){
       hide(el.error);
       show(el.loading);
@@ -146,7 +118,7 @@
           show(el.updated);
         }
 
-        // Tabla
+        // Standings
         el.standingsBody.innerHTML = '';
         (data.standings || []).forEach((row, i) => {
           const tr = document.createElement('tr');
@@ -165,13 +137,28 @@
         });
         show(el.standingsSection);
 
-        // Hoy
-        renderGames(el.gamesTodayList, data.games_today || []);
-        show(el.gamesTodaySection);
-
-        // AYER
-        renderGames(el.gamesYDayList, data.games_yesterday || []);
-        show(el.gamesYDaySection);
+        // Juegos de hoy (acepta strings u objetos)
+        el.gamesList.innerHTML = '';
+        const games = data.games_today || [];
+        if (games.length === 0) {
+          el.gamesList.innerHTML = `<li class="muted">No hay juegos finalizados hoy.</li>`;
+        } else {
+          games.forEach(g => {
+            let obj = g;
+            if (typeof g === 'string') obj = parseGameString(g);
+            const li = document.createElement('li');
+            if (obj.raw) {
+              li.textContent = obj.raw;
+            } else {
+              li.innerHTML = `
+                <div><strong>${obj.home_team}</strong> ${obj.home_score} - ${obj.away_score} <strong>${obj.away_team}</strong></div>
+                <div class="pill">${obj.ended_at_local}</div>
+              `;
+            }
+            el.gamesList.appendChild(li);
+          });
+        }
+        show(el.gamesSection);
 
       }catch(e){
         el.error.textContent = 'No se pudieron cargar los datos: ' + e.message;
