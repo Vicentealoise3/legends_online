@@ -14,6 +14,46 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, "standings_cache.json")
 SCL = ZoneInfo("America/Santiago")
 
+# --- Lista de exclusiones manuales ---
+# Caso 1: excluir por string exacto (cuando games_today es lista de strings)
+EXCLUDE_STRINGS = {
+    "Yankees 0 - 0 Mets - 08-09-2025 - 9:40 pm (hora Chile)",
+}
+
+# Caso 2: excluir por reglas (cuando games_today es lista de objetos)
+EXCLUDE_RULES = [
+    {
+        "home_team": "Yankees",
+        "away_team": "Mets",
+        "home_score": 0,
+        "away_score": 0,
+        "ended_at_local_contains": "08-09-2025 - 9:40"
+    }
+]
+
+def _should_exclude_game(g):
+    # Si es string: comparación exacta contra EXCLUDE_STRINGS
+    if isinstance(g, str):
+        return g.strip() in EXCLUDE_STRINGS
+
+    # Si es objeto: coteja campos si existen
+    if isinstance(g, dict):
+        for rule in EXCLUDE_RULES:
+            ok = True
+            for k, v in rule.items():
+                if k == "ended_at_local_contains":
+                    if v not in (g.get("ended_at_local") or ""):
+                        ok = False
+                        break
+                else:
+                    if g.get(k) != v:
+                        ok = False
+                        break
+            if ok:
+                return True
+    return False
+
+
 def update_data_cache():
     ts = datetime.now(SCL).strftime('%Y-%m-%d %H:%M:%S')
     print(f"[{ts}] Iniciando actualización del cache...")
@@ -31,7 +71,10 @@ def update_data_cache():
         # 2) Juegos de HOY (hora Chile)
         games_today = standings.games_played_today_scl()
 
-        # 3) Escribir cache (sólo lo que necesita la web)
+        # 3) Aplicar exclusiones manuales
+        games_today = [g for g in games_today if not _should_exclude_game(g)]
+
+        # 4) Escribir cache (sólo lo que necesita la web)
         payload = {
             "standings": rows,
             "games_today": games_today,
@@ -46,9 +89,11 @@ def update_data_cache():
         print(f"ERROR durante la actualización del cache: {e}")
         return False
 
+
 def _run_once_then_exit():
     ok = update_data_cache()
     sys.exit(0 if ok else 1)
+
 
 if __name__ == "__main__":
     # Modo 1: una sola pasada (útil en Render antes de levantar la web)
