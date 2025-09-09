@@ -118,10 +118,11 @@ TEAM_RECORD_ADJUSTMENTS = {
     # "Blue Jays": (0, -1),
     "Dodgers": (0, -1),
     "Diamondbacks": (-1, 0),
-    "Yankees": (0, -1),
+    "Yankees": (-1, -1),
     "Phillies": (-1, 0),
     "Padres": (-1, 0),
     "Blue Jays": (0, -1),
+    "Mets": (0, -1),
 }
 
 # ===== Ajustes manuales de PUNTOS (desconexiones, sanciones, bonificaciones) =====
@@ -484,3 +485,4 @@ def games_played_today_scl():
 
 
 # ====== FIN DEL BLOQUE ======
+
